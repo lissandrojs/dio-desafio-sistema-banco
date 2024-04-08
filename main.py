@@ -52,7 +52,9 @@ while True:
         print("Não foram realizadas movimentações." if not extract else extract)
         print(f"\nSaldo: R$ {balance:.2f}")
         print("==========================================")
+    
     elif option == "q":
         break
+   
     else:
         print("Operação inválida, por favor selecione novamente a operação desejada.")
