@@ -19,30 +19,30 @@ while True:
     option = input(menu)
 
     if option == "d":
-        value = float(input("Informe o valor do deposito:"))
+        value = float(input("Informe o valor do deposito: "))
 
         if value > 0:
             balance += value
-            extract += f"Desosito: R$ {valor:.2f}\n"
+            extract += f"Desosito: R$ {value:.2f}\n"
         else:
             print("Operação falhou! O valor informado e inválido.")
     
     elif option == "s":
-        value = float(input("Infome o valor do saque"))
+        value = float(input("Infome o valor do saque: "))
         
         exceeded_balance =  value > balance
         exceeded_limit = value > limit
-        execeeded_withdrawals = value > whitdrawal_numbers
+        execeeded_withdrawals =  withdrawal_numbers > WITHDRAWAL_LIMIT
 
-        if execeed_balance:
+        if exceeded_balance:
             print("Operação falhou! Você não tem saldo suficiente.")
         elif exceeded_limit:
             print("Operação falhou! Numero maximo de saques ecxcedido." )
         elif execeeded_withdrawals:
             print("Operação falhou! Número máximo de sques excedido.")
-        elif valor > 0:
+        elif value > 0:
             balance -= value
-            extract += f"Saques: R$ {valor:.2f}\n"
+            extract += f"Saques: R$ {value:.2f}\n"
             withdrawal_numbers += 1
         else :
             print("Operação falhou! o valor informado e inválido.")
