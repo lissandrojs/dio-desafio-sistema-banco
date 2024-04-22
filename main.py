@@ -4,14 +4,14 @@ from datetime import datetime
 
 class History:
     def __init__(self):
-        self._transaction = []
+        self._transactions = []
 
     @property
     def transactions(self):
-        return self._transaction
+        return self._transactions
     
     def add_new_transactions(self, transaction):
-        self._transaction.append({
+        self._transactions.append({
             "tipo": transaction.__class__.__name__,
             "valor":transaction.value,
             "data": datetime.now()
@@ -22,7 +22,7 @@ class Account:
         self._balance = 0
         self._number = number
         self._agency = "0001"
-        self._client = client
+        self.client = client
         self._history = History()
 
     @classmethod
@@ -72,22 +72,22 @@ class Account:
 
 class CurrentAccount(Account):
     def __init__(self,number,client,limit=500,limit_withdrawals=3):
-        super.__init__(number,client)
+        super().__init__(number,client)
         self._limit = limit
         self._limit_withdrawals = limit_withdrawals
     
     def withdraw(self,value):
-        number_of_withdrawals = len([transaction for transaction in self.history.transactions if transaction["tipo"] ] == "saque")
+        number_of_withdrawals = len([transaction for transaction in self.history.transactions if transaction["tipo"]  ==  Withdraw.__name__ ])
         
-        exceeded_limit = value > self.limit
-        execeeded_withdrawals = number_of_withdrawals > self._limit
+        exceeded_limit = value > self._limit
+        execeeded_withdrawals = number_of_withdrawals > self._limit_withdrawals
 
         if exceeded_limit:
             print("Operação falhou! Numero maximo de saques ecxcedido." )
         elif execeeded_withdrawals:
             print("Operação falhou! Número máximo de saques excedido.")
         else :
-            return super().sacar(value)
+            return super().withdraw(value)
         
         return False
 
@@ -110,7 +110,7 @@ class Client:
         self.accounts.append(account)
 
 class PrivateIndiavidual(Client):
-    def __init__(self,cpf,name,date_of_birth):
+    def __init__(self,cpf,name,date_of_birth,address):
         super().__init__(address)
         self.cpf = cpf
         self.name = name
@@ -129,7 +129,7 @@ class Transaction(ABC):
 
 class Withdraw(Transaction):
     def __init__(self,value):
-        return self._value - value
+        self._value = value
 
     @property
     def value(self):
@@ -143,7 +143,7 @@ class Withdraw(Transaction):
 
 class Deposit(Transaction):
     def __init__(self,value):
-        return self._value - value
+         self._value = value
 
     @property
     def value(self):
@@ -179,9 +179,9 @@ def to_withdraw(clients):
 
     if not client_bank:
         print("Cliente não encontrado ! ")
-        return
+        return False
 
-    value = float("Informe o valor do saque: ")
+    value = float(input("Informe o valor do saque: "))
 
     transaction = Withdraw(value)
     account = recover_customer_account(client_bank)
@@ -209,11 +209,11 @@ def deposit(clients):
     client_bank.make_transaction(account,transaction)
 
 def recover_customer_account(client):
-    if not client.account:
+    if not client.accounts:
         print("Cliente não possui conta !")
         return
     
-    return client.account[0]
+    return client.accounts[0]
 
 def display_extract(clients):
     cpf = input("Informe o CPF (somente números): ")
@@ -236,7 +236,7 @@ def display_extract(clients):
 
     else:
         for  transaction in transactions :
-            extract += f"\n\ {transaction['tipo']}:\n\tR$ {transaction['valor']:.2f}"
+            extract += f"\n {transaction['tipo']}:\n\tR$ {transaction['valor']:.2f}"
 
 
     print(extract)
@@ -255,7 +255,7 @@ def create_user(users):
     address = input("Informe o endereço (dd-mm-aaaa): ")
     birth_date = input("Informe a data de nascimento (logradouro, numero , bairro , cidades, estado): ")
 
-    client = PrivateIndiavidual(name=name,date_of_birth=birth_date,address=address)
+    client = PrivateIndiavidual(name=name,date_of_birth=birth_date,address=address,cpf=cpf)
     users.append(client)
     print("Cliente Criado com sucesso!")
 
@@ -269,9 +269,13 @@ def create_account(number_account,users,accounts):
         print("Usuario não encontrado, Crie um usuário!!")
         return 
 
-    account = CurrentAccount.new_account(client=users,number=number_account)
+    account = CurrentAccount.new_account(client=valid_user,number=number_account)
     accounts.append(account)
-    users.accounts.append(account)
+
+    for us in users:
+        if us.cpf == valid_user.cpf:
+            us.accounts.append(account)
+
     print("Conta criada com sucesso! ")
 
 def list_accounts(accounts):
