@@ -1,21 +1,56 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
+
+class InteractingAccount:
+    def __init__(self,accounts):
+        self.accounts = accounts
+        self._index = 0
+
+        print(accounts)
+    
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            account = self.accounts[self._index]
+            return f"""
+                    Agência: {account.agency}
+                    C/C: {account.number}
+                    Titular: {account.client.name}
+                    Saldo:  {account.balance}
+                    """
+        except IndexError:
+            raise StopIteration
+        finally:
+            self._index += 1
 
 
 class History:
     def __init__(self):
-        self._transaction = []
+        self._transactions = []
 
     @property
     def transactions(self):
-        return self._transaction
+        return self._transactions
     
     def add_new_transactions(self, transaction):
-        self._transaction.append({
+        self._transactions.append({
             "tipo": transaction.__class__.__name__,
             "valor":transaction.value,
-            "data": datetime.now()
+            "data": datetime.now().strftime("%d-%m-%Y %H:%M:%S")
             })
+        
+    def generate_report(self,type_transaction=None):
+        for transaction in self._transactions:
+            if type_transaction is None or transaction["tipo"].lower() == type_transaction.lower():
+                yield transaction
+
+    def transactions_of_the_day(self):
+        current_date = datetime.now(timezone.utc).date()
+        transactions =  [ts for ts in self._transactions  if current_date == datetime.strptime(ts['data'],"%d-%m-%Y %H:%M:%S").date()]
+
+        return transactions
 
 class Account:
     def __init__(self,number,client):
@@ -45,6 +80,10 @@ class Account:
     def history(self):
         return self._history
     
+    @property 
+    def client(self):
+        return self._client
+    
     def withdraw(self,value):
         balance  = self.balance
         exceeded_balance =  value > balance
@@ -72,14 +111,14 @@ class Account:
 
 class CurrentAccount(Account):
     def __init__(self,number,client,limit=500,limit_withdrawals=3):
-        super.__init__(number,client)
+        super().__init__(number,client)
         self._limit = limit
         self._limit_withdrawals = limit_withdrawals
     
     def withdraw(self,value):
-        number_of_withdrawals = len([transaction for transaction in self.history.transactions if transaction["tipo"] ] == "saque")
+        number_of_withdrawals = len([transaction for transaction in self.history.transactions if transaction["tipo"] == Withdraw.__name__ ] )
         
-        exceeded_limit = value > self.limit
+        exceeded_limit = value > self._limit
         execeeded_withdrawals = number_of_withdrawals > self._limit
 
         if exceeded_limit:
@@ -87,7 +126,7 @@ class CurrentAccount(Account):
         elif execeeded_withdrawals:
             print("Operação falhou! Número máximo de saques excedido.")
         else :
-            return super().sacar(value)
+            return super().withdraw(value)
         
         return False
 
@@ -95,22 +134,26 @@ class CurrentAccount(Account):
         return f"""
         Agência: {self.agency}
         C/C: {self.number}
-        Titular: {self.client.name}
+        Titular: {self._client.name}
         """
 
 class Client:
     def __init__(self,address):
         self.address = address
         self.accounts = []
+        self.TRANSACTION_LIMIT = 10
     
     def make_transaction(self,account,transaction):
+        if len(account.history.transactions_of_the_day()) >= self.TRANSACTION_LIMIT :
+            print("Voce excedeu o limite de transação do dia.")
+            return 
         transaction.register(account)
 
     def add_account(self,account):
         self.accounts.append(account)
 
 class PrivateIndiavidual(Client):
-    def __init__(self,cpf,name,date_of_birth):
+    def __init__(self,cpf,name,date_of_birth,address):
         super().__init__(address)
         self.cpf = cpf
         self.name = name
@@ -129,7 +172,7 @@ class Transaction(ABC):
 
 class Withdraw(Transaction):
     def __init__(self,value):
-        return self._value - value
+        self._value = value
 
     @property
     def value(self):
@@ -143,7 +186,7 @@ class Withdraw(Transaction):
 
 class Deposit(Transaction):
     def __init__(self,value):
-        return self._value - value
+        self._value = value
 
     @property
     def value(self):
@@ -169,10 +212,19 @@ def menu():
     => """
     return input(menu)
 
+def log_transaction(func):
+    def envolepe(*args,**kwargs):
+        result = func(*args,**kwargs)
+        print(f"{datetime.now()}: {func.__name__.upper()}")
+        return result 
+    
+    return envolepe
+
 def filter_client_bank(cpf,users):
     filter = [current_user for current_user in users if current_user.cpf == cpf]
     return filter[0] if filter else None
-
+    
+@log_transaction
 def to_withdraw(clients):
     cpf = input("Informe o CPF (somente números): ")
     client_bank = filter_client_bank(cpf,clients)
@@ -181,7 +233,7 @@ def to_withdraw(clients):
         print("Cliente não encontrado ! ")
         return
 
-    value = float("Informe o valor do saque: ")
+    value = float(input("Informe o valor do saque: "))
 
     transaction = Withdraw(value)
     account = recover_customer_account(client_bank)
@@ -191,12 +243,13 @@ def to_withdraw(clients):
     
     client_bank.make_transaction(account,transaction)
 
+@log_transaction
 def deposit(clients):
     cpf = input("Informe o CPF (somente números): ")
     client_bank = filter_client_bank(cpf,clients)
 
     if not client_bank:
-        print("!!! Usuario existente com esse CPF !!!")
+        print("!!! Usuario não registrado com esse CPF !!!")
         return
 
     value = float(input("Infome o valor do deposito: "))
@@ -209,12 +262,13 @@ def deposit(clients):
     client_bank.make_transaction(account,transaction)
 
 def recover_customer_account(client):
-    if not client.account:
+    if not client.accounts:
         print("Cliente não possui conta !")
         return
     
-    return client.account[0]
+    return client.accounts[0]
 
+@log_transaction
 def display_extract(clients):
     cpf = input("Informe o CPF (somente números): ")
     client_bank = filter_client_bank(cpf,clients)
@@ -231,15 +285,15 @@ def display_extract(clients):
     extract= ""
     
     print("\n================ EXTRATO ================")
+    have_transaction = False
+
+    for transaction in account.history.generate_report():
+        print(f"\n{transaction['data']} \n{transaction['tipo']}:\n\tR$ {transaction['valor']:.2f}")
+        have_transaction = True
+
     if not transactions:
         extract = "Nenhuma transação realizada"
 
-    else:
-        for  transaction in transactions :
-            extract += f"\n\ {transaction['tipo']}:\n\tR$ {transaction['valor']:.2f}"
-
-
-    print(extract)
     print(f"\nSaldo: R$ {account.balance:.2f}")
     print("==========================================")
 
@@ -255,12 +309,12 @@ def create_user(users):
     address = input("Informe o endereço (dd-mm-aaaa): ")
     birth_date = input("Informe a data de nascimento (logradouro, numero , bairro , cidades, estado): ")
 
-    client = PrivateIndiavidual(name=name,date_of_birth=birth_date,address=address)
+    client = PrivateIndiavidual(name=name,date_of_birth=birth_date,address=address,cpf=cpf)
     users.append(client)
     print("Cliente Criado com sucesso!")
 
 
-
+@log_transaction
 def create_account(number_account,users,accounts):
     cpf = input("Informe o CPF (somente números): ")
     valid_user = filter_client_bank(cpf,users)
@@ -269,13 +323,17 @@ def create_account(number_account,users,accounts):
         print("Usuario não encontrado, Crie um usuário!!")
         return 
 
-    account = CurrentAccount.new_account(client=users,number=number_account)
-    accounts.append(account)
-    users.accounts.append(account)
+    account = CurrentAccount.new_account(client=valid_user,number=number_account)
+
+    for us in users:
+        if us.cpf == valid_user.cpf:
+            us.accounts.append(account)
+
     print("Conta criada com sucesso! ")
+    return account
 
 def list_accounts(accounts):
-    for account in accounts:
+    for account in InteractingAccount(accounts):
         print("=" * 100)
         print(account)
         print("=" * 100)
@@ -301,7 +359,7 @@ def main():
 
         elif option == "nc":
             number_account = len(accounts)
-            create_account(number_account,users,accounts)
+            accounts.append(create_account(number_account,users,accounts))
 
         elif option == "lc":
             list_accounts(accounts)    
