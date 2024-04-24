@@ -129,6 +129,9 @@ class CurrentAccount(Account):
             return super().withdraw(value)
         
         return False
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}: ({self.agency}, {self.number}, {self.client.name})"
 
     def __str__(self):
         return f"""
@@ -158,6 +161,9 @@ class PrivateIndiavidual(Client):
         self.cpf = cpf
         self.name = name
         self.date_of_birth = date_of_birth
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}: {self.cpf}"
 
 class Transaction(ABC):
         @property
@@ -215,6 +221,10 @@ def menu():
 def log_transaction(func):
     def envolepe(*args,**kwargs):
         result = func(*args,**kwargs)
+        data_and_time = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+        with open('log.txt','a') as write_file :
+            write_file.write(f"[{data_and_time}] Função '{func.__name__}' executada com os argumentos {args} e {kwargs}. Retornou {result}\n " )
+
         print(f"{datetime.now()}: {func.__name__.upper()}")
         return result 
     
@@ -369,5 +379,5 @@ def main():
     
         else:
             print("Operação inválida, por favor selecione novamente a operação desejada.")
-
+            
 main()
